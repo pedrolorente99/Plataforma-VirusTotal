@@ -30,7 +30,3 @@ Para crear un administrador: `python3 crear_admin.py`.
 ## Modo VirusTotal
 
 Copia `.env.example` a `.env` y rellena `VT_API_KEY` y `SECRET_KEY`.
-
-## Problemas frecuentes
-
-- **Error 403 "Access denied" en macOS**: el puerto 5000 lo usa AirPlay. Por eso la app usa el 5001. Puedes cambiarlo con `PORT=8080 python3 app.py`.
