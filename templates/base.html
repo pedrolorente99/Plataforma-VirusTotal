@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}{% endblock %} · Cuarentena</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="auth">
+  <aside class="vitrina">
+    <p class="marca">LorentiX</p>
+    <div>
+      <h2>¿Sabes qué hay dentro de un archivo antes de abrirlo?</h2>
+      <ul class="veredictos" aria-label="Ejemplo de resultados">
+        <li><span>informe_trimestral.pdf</span><b class="sano">Sano</b></li>
+        <li><span>factura_octubre.exe</span><b class="infectado">Infectado</b></li>
+        <li><span>presentacion_cliente.pptx</span><b class="sano">Sano</b></li>
+        <li><span>actualizacion_driver.zip</span><b class="infectado">Infectado</b></li>
+      </ul>
+    </div>
+    <p class="nota">Cada archivo se contrasta con más de 70 motores antivirus.</p>
+  </aside>
+
+  <main class="formulario">
+    {% with mensajes = get_flashed_messages(with_categories=true) %}
+      {% for categoria, texto in mensajes %}
+        <p class="aviso {{ 'ok' if categoria == 'ok' else 'error' }}" role="alert">{{ texto }}</p>
+      {% endfor %}
+    {% endwith %}
+    {% block contenido %}{% endblock %}
+  </main>
+</body>
+</html>

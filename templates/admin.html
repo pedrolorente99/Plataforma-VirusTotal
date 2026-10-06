@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Administración · LorentiX</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <header class="barra">
+    <p class="marca">LorentiX</p>
+    <form method="post" action="{{ url_for('salir') }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <span>{{ usuario['nombre'] }}, administrador</span>
+      <button class="secundario" type="submit">Cerrar sesión</button>
+    </form>
+  </header>
+
+  <main class="panel ancho">
+    <h1>Panel de control</h1>
+    {% with mensajes = get_flashed_messages(with_categories=true) %}
+      {% for categoria, texto in mensajes %}
+        <p class="aviso {{ 'ok' if categoria == 'ok' else 'error' }}" role="alert">{{ texto }}</p>
+      {% endfor %}
+    {% endwith %}
+
+    <section class="resumen" aria-label="Resumen">
+      <div><b>{{ usuarios|length }}</b><span>Usuarios</span></div>
+      <div><b>{{ admins }}</b><span>Administradores</span></div>
+      <div><b>{{ abiertos }}</b><span>Incidentes abiertos</span></div>
+      <ul class="deptos" aria-label="Usuarios por departamento">
+        {% for d in por_depto %}<li>{{ d.departamento }} <b>{{ d.n }}</b></li>{% endfor %}
+      </ul>
+    </section>
+
+    <div class="herramientas">
+      <label for="buscar" class="oculto">Buscar usuario</label>
+      <input id="buscar" type="search" placeholder="Buscar por nombre, correo o departamento…">
+    </div>
+
+    <div class="tabla-wrap">
+      <table class="rejilla" id="tabla-usuarios">
+        <thead>
+          <tr>
+            <th>ID</th><th>Nombre</th><th>Correo</th><th>Departamento</th><th>Rol</th>
+            <th>Alta</th><th title="Incidentes enviados">Env.</th><th title="Incidentes recibidos">Rec.</th>
+            <th>Nueva contraseña</th><th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for u in usuarios %}
+          {% set yo = u.id == usuario['id'] %}
+          <tr data-buscar="{{ (u.nombre ~ ' ' ~ u.email ~ ' ' ~ u.departamento)|lower }}">
+            <td>{{ u.id }}</td>
+            <td><input form="f{{ u.id }}" name="nombre" type="text" value="{{ u.nombre }}" required aria-label="Nombre de {{ u.nombre }}"></td>
+            <td><input form="f{{ u.id }}" name="email" type="email" value="{{ u.email }}" required aria-label="Correo de {{ u.nombre }}"></td>
+            <td>
+              <select form="f{{ u.id }}" name="departamento" aria-label="Departamento de {{ u.nombre }}">
+                {% for d in departamentos %}<option {{ 'selected' if d == u.departamento }}>{{ d }}</option>{% endfor %}
+              </select>
+            </td>
+            <td>
+              {% if yo %}
+                <input form="f{{ u.id }}" type="hidden" name="rol" value="admin">
+                <select disabled aria-label="Tu rol"><option>admin</option></select>
+              {% else %}
+                <select form="f{{ u.id }}" name="rol" aria-label="Rol de {{ u.nombre }}">
+                  {% for r in roles %}<option {{ 'selected' if r == u.rol }}>{{ r }}</option>{% endfor %}
+                </select>
+              {% endif %}
+            </td>
+            <td>{{ u.creado[:10] }}</td>
+            <td>{{ u.enviados }}</td>
+            <td>{{ u.recibidos }}</td>
+            <td><input form="f{{ u.id }}" name="password" type="password" minlength="8" autocomplete="new-password" placeholder="Sin cambios" aria-label="Nueva contraseña de {{ u.nombre }}"></td>
+            <td class="acciones-fila">
+              <form id="f{{ u.id }}" method="post" action="{{ url_for('admin_guardar', uid=u.id) }}">
+                <input type="hidden" name="csrf" value="{{ csrf_token }}">
+                <button class="mini" type="submit">Guardar</button>
+              </form>
+              {% if not yo %}
+              <form class="eliminar" data-nombre="{{ u.nombre }}" method="post" action="{{ url_for('admin_eliminar', uid=u.id) }}">
+                <input type="hidden" name="csrf" value="{{ csrf_token }}">
+                <button class="mini peligro" type="submit">Eliminar</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="privacidad">Las contraseñas se guardan cifradas y no se pueden consultar; solo se pueden sustituir por una nueva.</p>
+
+    {% set etiquetas = {'pendiente': 'Pendiente', 'en_revision': 'En revisión', 'resuelto': 'Resuelto'} %}
+    <h2 class="subtitulo">Historial de archivos enviados</h2>
+    <div class="herramientas">
+      <label for="buscar-historial" class="oculto">Buscar en el historial</label>
+      <input id="buscar-historial" type="search" placeholder="Buscar por archivo, remitente, destinatario o estado…">
+    </div>
+    <div class="tabla-wrap">
+      <table class="rejilla historial" id="tabla-historial">
+        <thead>
+          <tr>
+            <th>Fecha</th><th>Archivo</th><th>Enviado por</th><th>Enviado a</th>
+            <th>Detecc.</th><th>Estado</th><th>Nota</th><th>SHA-256</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for h in historial %}
+          <tr data-buscar="{{ ((h.archivo or '') ~ ' ' ~ (h.remitente or '') ~ ' ' ~ (h.email_remitente or '') ~ ' ' ~ (h.destinatario or '') ~ ' ' ~ (h.email_destinatario or '') ~ ' ' ~ etiquetas[h.estado])|lower }}">
+            <td>{{ h.creado[:16] }}</td>
+            <td class="nombre-archivo" title="{{ h.archivo }}">{{ h.archivo }}</td>
+            <td>{{ h.remitente or 'Usuario eliminado' }}{% if h.dep_remitente %}<small class="dep">{{ h.dep_remitente }}</small>{% endif %}</td>
+            <td>{{ h.destinatario or 'Usuario eliminado' }}{% if h.dep_destinatario %}<small class="dep">{{ h.dep_destinatario }}</small>{% endif %}</td>
+            <td>{{ h.detecciones if h.detecciones is not none else '—' }}</td>
+            <td><span class="estado {{ h.estado }}">{{ etiquetas[h.estado] }}</span></td>
+            <td>{{ h.nota or '—' }}</td>
+            <td class="hash">{{ h.sha256[:16] }}…</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="8" class="vacia">Todavía no se ha enviado ningún archivo al equipo de seguridad.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="privacidad">Si se elimina a un usuario, también desaparecen del historial los envíos en los que participó.</p>
+  </main>
+
+  <script>
+    function filtrar(idBuscador, idTabla) {
+      document.getElementById(idBuscador).addEventListener("input", e => {
+        const q = e.target.value.toLowerCase().trim();
+        document.querySelectorAll(`#${idTabla} tbody tr[data-buscar]`).forEach(tr => { tr.hidden = !tr.dataset.buscar.includes(q); });
+      });
+    }
+    filtrar("buscar", "tabla-usuarios");
+    filtrar("buscar-historial", "tabla-historial");
+    document.querySelectorAll("form.eliminar").forEach(f => f.addEventListener("submit", e => {
+      if (!confirm(`¿Eliminar a ${f.dataset.nombre}? Se borrarán también sus archivos e incidentes. No se puede deshacer.`)) e.preventDefault();
+    }));
+  </script>
+</body>
+</html>

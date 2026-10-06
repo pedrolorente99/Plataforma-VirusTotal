@@ -1,0 +1,52 @@
+<p class="solo-lectura">Vista de solo lectura. El archivo no se ejecuta, no se descomprime y no se puede descargar desde aquí.</p>
+
+<dl class="ficha">
+  <div><dt>Tipo</dt><dd>{{ info.tipo }}</dd></div>
+  <div><dt>Tamaño</dt><dd>{{ info.tamano|tam }}</dd></div>
+  <div><dt>Entropía</dt><dd>{{ info.entropia }} / 8, {{ info.entropia_texto }}</dd></div>
+  <div class="ancha"><dt>SHA-256</dt><dd class="hash">{{ caso.sha256 }}</dd></div>
+</dl>
+
+{% if info.alertas %}
+<section class="alertas-archivo" aria-label="Señales de alerta">
+  <h2>Señales de alerta</h2>
+  <ul>{% for a in info.alertas %}<li>{{ a }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+
+{% if info.entradas is not none %}
+<section class="bloque-contenido">
+  <h2>Contenido del archivo <span class="contador">{{ info.total_entradas }}</span></h2>
+  <div class="tabla-wrap">
+    <table class="rejilla entradas">
+      <thead><tr><th>Nombre</th><th>Tamaño</th><th>Comprimido</th><th>Avisos</th></tr></thead>
+      <tbody>
+      {% for e in info.entradas %}
+        <tr class="{{ 'sospechosa' if e.alertas }}">
+          <td class="ruta">{{ e.nombre }}</td>
+          <td>{{ e.tamano|tam }}</td>
+          <td>{{ e.comprimido|tam }}</td>
+          <td>{% for a in e.alertas %}<span class="chip-alerta">{{ a }}</span>{% endfor %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if info.oculto %}<p class="privacidad">Se muestran las primeras {{ info.entradas|length }} entradas; faltan {{ info.oculto }} más.</p>{% endif %}
+</section>
+{% elif info.nota_zip %}
+<section class="bloque-contenido"><h2>Contenido del archivo</h2><p class="vacia">{{ info.nota_zip }}</p></section>
+{% endif %}
+
+<section class="bloque-contenido">
+  <h2>Primeros bytes</h2>
+  <pre class="volcado" tabindex="0">{{ info.hex }}</pre>
+</section>
+
+<section class="bloque-contenido">
+  <h2>Cadenas de texto legibles</h2>
+  {% if info.cadenas %}
+  <pre class="volcado" tabindex="0">{{ info.cadenas|join('\n') }}</pre>
+  <p class="privacidad">Solo se analiza el primer megabyte. Los enlaces aparecen con «hxxp» para que no se puedan pulsar por error.</p>
+  {% else %}<p class="vacia">No se encontraron cadenas legibles.</p>{% endif %}
+</section>

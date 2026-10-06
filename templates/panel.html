@@ -1,0 +1,255 @@
+{% macro carpeta(titulo, clave, archivos, csrf, equipo=[]) %}
+<section class="carpeta {{ clave }}" aria-labelledby="t-{{ clave }}">
+  <header>
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.6l2 2.2h8.4A1.5 1.5 0 0 1 21 8.7v8.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z" fill="currentColor"/></svg>
+    <h2 id="t-{{ clave }}">{{ titulo }}</h2>
+    <span class="contador">{{ archivos|length }}</span>
+  </header>
+  {% if clave == 'archivos' %}
+  <form method="post" action="{{ url_for('subir') }}" enctype="multipart/form-data">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label class="zona">Elegir archivos para analizar
+      <input id="selector" type="file" name="archivos" multiple>
+    </label>
+  </form>
+  {% endif %}
+  {% if archivos %}
+  <ul class="ficheros">
+    {% for a in archivos %}
+    <li>
+      <span class="nombre" title="{{ a.nombre }}">{{ a.nombre }}</span>
+      <small>{{ a.tam }}</small>
+      <form method="post" action="{{ url_for('borrar', carpeta=clave, nombre=a.nombre) }}">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="borrar" type="submit" aria-label="Eliminar {{ a.nombre }}">×</button>
+      </form>
+      {% if clave == 'infectados' %}
+      <details class="derivar">
+        <summary>Enviar a IT o Ciberseguridad</summary>
+        {% if equipo %}
+        <form method="post" action="{{ url_for('derivar', nombre=a.nombre) }}">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <label for="dest-{{ loop.index }}">Destinatario</label>
+          <select id="dest-{{ loop.index }}" name="destinatario" required>
+            {% for u in equipo %}<option value="{{ u.id }}">{{ u.nombre }} ({{ u.departamento }})</option>{% endfor %}
+          </select>
+          <label for="nota-{{ loop.index }}">Nota (opcional)</label>
+          <textarea id="nota-{{ loop.index }}" name="nota" maxlength="500" placeholder="Cómo lo recibiste, qué hacía el archivo…"></textarea>
+          <button class="enviar" type="submit">Enviar archivo</button>
+        </form>
+        {% else %}
+        <p class="vacia">Todavía no hay usuarios de IT o Ciberseguridad registrados.</p>
+        {% endif %}
+      </details>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="vacia">{{ 'Sube aquí lo que quieras comprobar.' if clave == 'archivos' else 'Vacía por ahora.' }}</p>
+  {% endif %}
+</section>
+{% endmacro %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panel · LorentiX</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <header class="barra">
+    <p class="marca">LorentiX</p>
+    <form method="post" action="{{ url_for('salir') }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <span>{{ usuario['nombre'] }}, {{ usuario['departamento'] }}</span>
+      <button class="secundario" type="submit">Cerrar sesión</button>
+    </form>
+  </header>
+
+  <main class="panel">
+    <h1>Hola, {{ usuario['nombre'] }}</h1>
+    {% with mensajes = get_flashed_messages(with_categories=true) %}
+      {% for categoria, texto in mensajes %}
+        <p class="aviso {{ 'ok' if categoria == 'ok' else 'error' }}" role="alert">{{ texto }}</p>
+      {% endfor %}
+    {% endwith %}
+
+    {% set en_curso = estado and estado.fase in ('cola', 'analizando') %}
+    <div class="flujo">
+      {{ carpeta('Archivos', 'archivos', listas.archivos, csrf_token) }}
+
+      <div class="centro">
+        <form method="post" action="{{ url_for('analizar') }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <button class="analizar {{ 'activo' if en_curso }}" type="submit"
+                  {{ 'disabled' if en_curso or not listas.archivos }}>
+            {{ 'Analizando' if en_curso else 'Analizar' }}
+          </button>
+        </form>
+        <p id="progreso" class="progreso" aria-live="polite">
+          {% if en_curso %}
+            {% if estado.fase == 'cola' %}En cola, esperando turno…
+            {% else %}Analizando {{ estado.hechos + 1 }} de {{ estado.total }}{% endif %}
+          {% endif %}
+        </p>
+        <p class="privacidad">Solo se consulta la huella (hash) de cada archivo: el archivo no sale del servidor. Si VirusTotal no lo conoce, solo se sube si tú lo autorizas.</p>
+      </div>
+
+      <div class="resultados">
+        {{ carpeta('Sanos', 'sanos', listas.sanos, csrf_token) }}
+        {{ carpeta('Infectados', 'infectados', listas.infectados, csrf_token, equipo) }}
+      </div>
+    </div>
+
+    {% set etiquetas = {'pendiente': 'Pendiente', 'en_revision': 'En revisión', 'resuelto': 'Resuelto'} %}
+    {% if es_equipo or recibidos %}
+    <section class="bandeja">
+      <h2>Incidentes recibidos</h2>
+      {% if recibidos %}
+      <ul>
+        {% for c in recibidos %}
+        <li class="caso {{ c.estado }}">
+          <div class="caso-info">
+            <span class="nombre">{{ c.archivo }}</span>
+            <small>De {{ c.remitente }} ({{ c.dep_remitente }}), {{ c.creado[:16] }}{% if c.detecciones %}, {{ c.detecciones }} detecciones{% endif %}</small>
+            <small class="hash">SHA-256 {{ c.sha256 }}</small>
+            {% if c.nota %}<p class="nota-caso">{{ c.nota }}</p>{% endif %}
+          </div>
+          <span class="estado {{ c.estado }}">{{ etiquetas[c.estado] }}</span>
+          {% if c.estado != 'resuelto' %}
+          <div class="acciones">
+            <a class="enlace-mini" href="{{ url_for('contenido_incidente', caso_id=c.id) }}" data-contenido data-archivo="{{ c.archivo }}">Ver contenido</a>
+            {% if c.estado == 'pendiente' %}
+            <form method="post" action="{{ url_for('revisar', caso_id=c.id) }}">
+              <input type="hidden" name="csrf" value="{{ csrf_token }}">
+              <button class="mini secundario" type="submit">Tomar caso</button>
+            </form>
+            {% endif %}
+            <form method="post" action="{{ url_for('resolver', caso_id=c.id) }}">
+              <input type="hidden" name="csrf" value="{{ csrf_token }}">
+              <button class="mini" type="submit">Resolver y eliminar archivo</button>
+            </form>
+          </div>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="vacia">Sin incidentes por ahora. Cuando alguien te envíe un archivo infectado, aparecerá aquí.</p>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    {% if enviados %}
+    <section class="bandeja">
+      <h2>Enviados al equipo de seguridad</h2>
+      <ul>
+        {% for c in enviados %}
+        <li class="caso {{ c.estado }}">
+          <div class="caso-info">
+            <span class="nombre">{{ c.archivo }}</span>
+            <small>Para {{ c.destinatario }} ({{ c.dep_destinatario }}), {{ c.creado[:16] }}</small>
+          </div>
+          <span class="estado {{ c.estado }}">{{ etiquetas[c.estado] }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    {% if estado and estado.fase == 'fin' %}
+    <section class="informe">
+      <h2>Último análisis</h2>
+      <ul>
+        {% for r in estado.resultados %}
+        <li class="{{ r.veredicto }}">
+          <span class="nombre">{{ r.nombre }}</span>
+          {% if r.veredicto == 'infectado' %}<b>Infectado · {{ r.detecciones }} detecciones</b>
+          {% elif r.veredicto == 'sano' %}<b>Sano</b>
+          {% elif r.veredicto == 'desconocido' %}<b>Desconocido para VirusTotal · no se ha subido</b>
+          {% else %}<b>No se pudo analizar: {{ r.detalle }}</b>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+
+      {% set desconocidos = estado.resultados | selectattr('veredicto', 'equalto', 'desconocido') | list %}
+      {% if desconocidos %}
+      <form class="subida-vt" method="post" action="{{ url_for('subir_a_virustotal') }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <h3>Archivos que VirusTotal no conoce</h3>
+        <p>No se han clasificado y siguen en <b>Archivos</b>. Que VirusTotal no los conozca no significa que sean seguros. Si quieres analizarlos, tendrás que subirlos.</p>
+        <ul class="selector-vt">
+          {% for r in desconocidos %}
+          <li><label><input type="checkbox" name="archivos" value="{{ r.nombre }}"> <span class="nombre">{{ r.nombre }}</span></label></li>
+          {% endfor %}
+        </ul>
+        <label class="confirmo">
+          <input type="checkbox" name="confirmo" value="1" required>
+          Entiendo que VirusTotal compartirá el contenido de estos archivos con la comunidad de seguridad y no debo subir documentos confidenciales.
+        </label>
+        <button class="enviar" type="submit">Subir los seleccionados a VirusTotal</button>
+      </form>
+      {% endif %}
+    </section>
+    {% endif %}
+  </main>
+
+  <dialog id="visor" aria-labelledby="visor-titulo">
+    <div class="visor-cabecera">
+      <h2 id="visor-titulo"></h2>
+      <button type="button" class="mini secundario" id="visor-cerrar">Cerrar</button>
+    </div>
+    <div class="visor-cuerpo" id="visor-cuerpo"></div>
+  </dialog>
+
+  <script>
+    // Al elegir archivos, el formulario se envía solo (no tiene botón)
+    const selector = document.getElementById("selector");
+    if (selector) selector.addEventListener("change", () => {
+      if (selector.files.length) selector.form.submit();
+    });
+
+    const progreso = document.getElementById("progreso");
+    async function sondear() {
+      try {
+        const e = await (await fetch("{{ url_for('estado') }}")).json();
+        if (e.fase === "fin") { location.reload(); return; }
+        progreso.textContent = e.fase === "cola"
+          ? "En cola, esperando turno…"
+          : `Analizando ${e.hechos + 1} de ${e.total}: ${e.actual}`;
+      } catch (_) {}
+      setTimeout(sondear, 3000);
+    }
+    {% if en_curso %}sondear();{% endif %}   // solo si hay un análisis en marcha (si no, recargaría sin fin)
+
+    // Ventana emergente con el contenido de un archivo (solo lectura)
+    const visor = document.getElementById("visor");
+    const cuerpo = document.getElementById("visor-cuerpo");
+    let peticion = 0;
+    document.querySelectorAll("a[data-contenido]").forEach(enlace => enlace.addEventListener("click", async ev => {
+      ev.preventDefault();
+      const mia = ++peticion;
+      document.getElementById("visor-titulo").textContent = enlace.dataset.archivo;
+      cuerpo.textContent = "Cargando…";
+      visor.showModal();
+      try {
+        const r = await fetch(enlace.href, { headers: { "X-Requested-With": "fetch" } });
+        if (r.redirected) { location.reload(); return; }          // la sesión ha caducado
+        if (!r.ok) throw new Error(r.status);
+        const html = await r.text();
+        if (mia === peticion && visor.open) { cuerpo.innerHTML = html; cuerpo.scrollTop = 0; }
+      } catch (_) {
+        if (mia === peticion) cuerpo.textContent = "No se pudo cargar el contenido: el archivo ya no está o la sesión ha caducado.";
+      }
+    }));
+    document.getElementById("visor-cerrar").addEventListener("click", () => visor.close());
+    visor.addEventListener("click", ev => { if (ev.target === visor) visor.close(); });   // clic fuera
+    visor.addEventListener("close", () => { peticion++; cuerpo.textContent = ""; });       // no dejar el contenido en pantalla
+  </script>
+</body>
+</html>
