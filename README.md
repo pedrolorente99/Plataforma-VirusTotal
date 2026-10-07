@@ -7,7 +7,7 @@
 
 Aplicación web (Flask) donde los usuarios suben archivos para detectar posible malware.
 
-📖 **[Guía de uso paso a paso, con capturas](docs/GUIA.md)**
+📖 **[Guía de uso paso a paso](docs/GUIA.md)**
 
 ## Dos modos de funcionamiento
 
