@@ -1,8 +1,8 @@
 # Plataforma de detección de archivos
 
-> ⚠️ Proyecto estudiantil en versión beta: sujeto a cambios y **no apto para uso en producción ni en entornos empresariales reales**.
-
 Aplicación web (Flask) donde los usuarios suben archivos para detectar posible malware.
+
+> ⚠️ Proyecto estudiantil en versión beta: sujeto a cambios y **no apto para uso en producción ni en entornos empresariales reales**.
 
 📖 **[Guía de uso paso a paso, con capturas](docs/GUIA.md)**
 
