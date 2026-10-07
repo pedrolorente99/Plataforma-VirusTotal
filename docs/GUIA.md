@@ -1,3 +1,8 @@
+> [!WARNING]
+> **Proyecto estudiantil en versión beta.** Es una simulación de lo que podría llegar a ser una plataforma de este tipo.
+> Está sujeto a muchos cambios futuros y **no está listo para producción ni para usarse en una empresa real**.
+
+
 # Guía de uso — LorentiX
 
 Esta guía explica paso a paso cómo instalar y usar la plataforma: desde crear tu cuenta hasta enviar un archivo malicioso al equipo de seguridad para que lo trate.
